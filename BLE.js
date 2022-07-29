@@ -1,6 +1,6 @@
 let connectButton = document.getElementById('connect');
 let disconnectButton = document.getElementById('disconnect');
-
+var deviceName = 'ESP32'
 
 // Connect to the device on Connect button click
 connectButton.addEventListener('click', function(event) {
@@ -30,7 +30,7 @@ function isWebBLEAvailable() {
 
 function getDeviceInfo() {
   let options = {
-    acceptAllDevices: true
+    filters: [{name: deviceName}]
   }
   
   console.log('Requesting BLE device info...')
