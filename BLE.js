@@ -3,13 +3,16 @@ let disconnectButton = document.getElementById('disconnect');
 
 
 // Connect to the device on Connect button click
-connectButton.addEventListener('click', function() {
-  isWebBLEAvailable();
-});
+connectButton.addEventListener('click', function(event) {
+  event.stopPropagation()
+  event.preventDefault()
   
-if (isWebBLEAvailable()) {
+  if (isWebBLEAvailable()) {
   getDeviceInfo()
 }
+
+});
+  
 
 
 // Disconnect from the device on Disconnect button click
