@@ -37,4 +37,3 @@ function getDeviceInfo() {
     console.log('Request device error: ' + error)
   })
 }
-
