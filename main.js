@@ -49,8 +49,23 @@ function requestBluetoothDevice() {
         log('"' + device.name + '" bluetooth device selected');
         deviceCache = device;
 
+        // Added line
+        deviceCache.addEventListener('gattserverdisconnected',
+            handleDisconnection);
+
         return deviceCache;
       });
+}
+
+function handleDisconnection(event) {
+  let device = event.target;
+
+  log('"' + device.name +
+      '" bluetooth device disconnected, trying to reconnect...');
+
+  connectDeviceAndCacheCharacteristic(device).
+      then(characteristic => startNotifications(characteristic)).
+      catch(error => log(error));
 }
 
 // Connect to the device specified, get service and characteristic
@@ -99,8 +114,25 @@ function log(data, type = '') {
 
 // Disconnect from the connected device
 function disconnect() {
-  //
+  if (deviceCache) {
+    log('Disconnecting from "' + deviceCache.name + '" bluetooth device...');
+    deviceCache.removeEventListener('gattserverdisconnected',
+        handleDisconnection);
+
+    if (deviceCache.gatt.connected) {
+      deviceCache.gatt.disconnect();
+      log('"' + deviceCache.name + '" bluetooth device disconnected');
+    }
+    else {
+      log('"' + deviceCache.name +
+          '" bluetooth device is already disconnected');
+    }
+  }
+
+  characteristicCache = null;
+  deviceCache = null;
 }
+
 
 // Send data to the connected device
 function send(data) {
