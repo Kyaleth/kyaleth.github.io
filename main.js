@@ -43,7 +43,7 @@ function requestBluetoothDevice() {
   log('Requesting bluetooth device...');
 
   return navigator.bluetooth.requestDevice({
-    filters: [{services: [0xFFE0]}],
+    filters: [{services: [4fafc201-1fb5-459e-8fcc-c5c9c331914b]}],
   }).
       then(device => {
         log('"' + device.name + '" bluetooth device selected');
@@ -65,12 +65,12 @@ function connectDeviceAndCacheCharacteristic(device) {
       then(server => {
         log('GATT server connected, getting service...');
 
-        return server.getPrimaryService(0xFFE0);
+        return server.getPrimaryService(4fafc201-1fb5-459e-8fcc-c5c9c331914b);
       }).
       then(service => {
         log('Service found, getting characteristic...');
 
-        return service.getCharacteristic(0xFFE1);
+        return service.getCharacteristic(beb5483e-36e1-4688-b7f5-ea07361b26a8);
       }).
       then(characteristic => {
         log('Characteristic found');
