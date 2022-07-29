@@ -27,7 +27,7 @@ function isWebBLEAvailable() {
 
 function getDeviceInfo() {
   let options = {
-    acceptAllDevice: true
+    acceptAllDevices: true
   }
   
   console.log('Requesting BLE device info...')
