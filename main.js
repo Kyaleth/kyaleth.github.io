@@ -1,140 +1,108 @@
-// Get references to UI elements
-let connectButton = document.getElementById('connect');
-let disconnectButton = document.getElementById('disconnect');
-let terminalContainer = document.getElementById('terminal');
-let sendForm = document.getElementById('send-form');
-let inputField = document.getElementById('input');
+'use strict';
 
-// Selected device object cache
-let deviceCache = null;
+function generateBmp(canvas, depth) {
+  depth = depth || 1; 
+  var ctx = canvas.getContext('2d');
+  var imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  var b = []; 
 
+  for (var i = canvas.height - 1; i >= 0; i--) {
+    
+    var rowArr = [];
+    for (var j = 0; j < canvas.width; j++) {
+      
+      var index = i * canvas.width * 4 + j * 4; 
+      
+      if (depth <= 8) {
+        var gap = Math.floor(255 / (Math.pow(2, depth) - 1));
+        
+        var paletteIndex = Math.floor((imagedata[index] + imagedata[index + 1] + imagedata[index + 2]) / gap / 3);
+        rowArr.push(paletteIndex);
+      }
+      
+      else if (depth == 16) {
+        var red = Math.ceil(imagedata[index] / 255 * 0x1f);
+        var green = Math.ceil(imagedata[index + 1] / 255 * 0x1f);
+        var blue = Math.ceil(imagedata[index + 2] / 255 * 0x1f);
 
-// Characteristic object cache
-let characteristicCache = null;
+        rowArr.push(((green & 0x07) << 5) + blue);
+        rowArr.push(0x00 + (red << 2) + (green >> 3));
+      }
+      
+      else {
+        var alpha = (depth == 32 ? imagedata[index + 3] : 255) / 255;
+        
+        rowArr.push(imagedata[index + 2] * alpha + (1 - alpha) * 255);
+        rowArr.push(imagedata[index + 1] * alpha + (1 - alpha) * 255);
+        rowArr.push(imagedata[index] * alpha + (1 - alpha) * 255);
+        depth == 32 && rowArr.push(imagedata[index + 3]); 
+      }
+    }
+    
+    if (depth <= 8) {
+      var tmpArr = [];
+      var colorIn8Bits = Math.floor(8 / depth);
+      for (var k = 0, len = rowArr.length; k < len; k += colorIn8Bits) {
+        var _byte = 0;
+        for (var l = 0; l < colorIn8Bits; l += 1) {
+          _byte += rowArr[k + l] << (colorIn8Bits - l - 1);
+        }
+        tmpArr.push(_byte);
+      }
+      rowArr = tmpArr;
+    }
 
-// Connect to the device on Connect button click
-connectButton.addEventListener('click', function() {
-  connect();
-});
-
-// Disconnect from the device on Disconnect button click
-disconnectButton.addEventListener('click', function() {
-  disconnect();
-});
-
-// Handle form submit event
-sendForm.addEventListener('submit', function(event) {
-  event.preventDefault(); // Prevent form sending
-  send(inputField.value); // Send text field contents
-  inputField.value = '';  // Zero text field
-  inputField.focus();     // Focus on text field
-});
-
-// Launch Bluetooth device chooser and connect to the selected
-function connect() {
-  return (deviceCache ? Promise.resolve(deviceCache) :
-      requestBluetoothDevice()).
-      then(device => connectDeviceAndCacheCharacteristic(device)).
-      then(characteristic => startNotifications(characteristic)).
-      catch(error => log(error));
-}
-
-function requestBluetoothDevice() {
-  log('Requesting bluetooth device...');
-
-  return navigator.bluetooth.requestDevice({
-    filters: [{services: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']}],
-  }).
-      then(device => {
-        log('"' + device.name + '" bluetooth device selected');
-        deviceCache = device;
-
-        // Added line
-        deviceCache.addEventListener('gattserverdisconnected',
-            handleDisconnection);
-
-        return deviceCache;
-      });
-}
-
-function handleDisconnection(event) {
-  let device = event.target;
-
-  log('"' + device.name +
-      '" bluetooth device disconnected, trying to reconnect...');
-
-  connectDeviceAndCacheCharacteristic(device).
-      then(characteristic => startNotifications(characteristic)).
-      catch(error => log(error));
-}
-
-// Connect to the device specified, get service and characteristic
-function connectDeviceAndCacheCharacteristic(device) {
-  if (device.gatt.connected && characteristicCache) {
-    return Promise.resolve(characteristicCache);
+    var totalRowArrLength = Math.floor((depth * canvas.width + 31) / 32) * 4; 
+    
+    while (totalRowArrLength > rowArr.length) {
+      rowArr.push(0);
+    }
+    b = b.concat(rowArr);
   }
 
-  log('Connecting to GATT server...');
-
-  return device.gatt.connect().
-      then(server => {
-        log('GATT server connected, getting service...');
-
-        return server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
-      }).
-      then(service => {
-        log('Service found, getting characteristic...');
-
-        return service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
-      }).
-      then(characteristic => {
-        log('Characteristic found');
-        characteristicCache = characteristic;
-
-        return characteristicCache;
-      });
+  return createBmpHeader(canvas.height, depth, canvas.width, b);
 }
 
-// Enable the characteristic changes notification
-function startNotifications(characteristic) {
-  log('Starting notifications...');
+function createBmpHeader(height, depth, width, arr) {
+    var offset, height, data;
 
-  return characteristic.startNotifications().
-      then(() => {
-        log('Notifications started');
-      });
-}
-
-
-// Output to terminal
-function log(data, type = '') {
-  terminalContainer.insertAdjacentHTML('beforeend',
-      '<div' + (type ? ' class="' + type + '"' : '') + '>' + data + '</div>');
-}
-
-// Disconnect from the connected device
-function disconnect() {
-  if (deviceCache) {
-    log('Disconnecting from "' + deviceCache.name + '" bluetooth device...');
-    deviceCache.removeEventListener('gattserverdisconnected',
-        handleDisconnection);
-
-    if (deviceCache.gatt.connected) {
-      deviceCache.gatt.disconnect();
-      log('"' + deviceCache.name + '" bluetooth device disconnected');
+    function conv(size) {
+        return String.fromCharCode(size & 0xff, (size >> 8) & 0xff, (size >> 16) & 0xff, (size >> 24) & 0xff);
     }
-    else {
-      log('"' + deviceCache.name +
-          '" bluetooth device is already disconnected');
-    }
-  }
 
-  characteristicCache = null;
-  deviceCache = null;
+    offset = depth <= 8 ? 54 + Math.pow(2, depth) * 4 : 54;
+
+    data = 'BM';
+    data += conv(offset + Math.ceil(width * height * depth / 8));
+    data += conv(0);
+    data += conv(offset);
+
+    data += conv(40);
+    data += conv(width);
+    data += conv(height);
+    data += String.fromCharCode(1, 0);
+    data += String.fromCharCode(depth, 0);
+    data += conv(0);
+    data += conv(arr.length);
+    data += conv(0);
+    data += conv(0);
+    data += conv(0);
+    data += conv(0);
+
+    if (depth <= 8) {
+        data += conv(0);
+
+        for (var s = Math.floor(255 / (Math.pow(2, depth) - 1)), i = s; i < 256; i += s) {
+            data += conv(i + i * 256 + i * 65536);
+        }
+    }
+
+    for (var i = 0, len = arr.length; i < len; i++) {
+        data += String.fromCharCode(arr[i]);
+    }
+    return data;
 }
 
-
-// Send data to the connected device
-function send(data) {
-  //
+function createDataUri(data) {
+  return 'data:image/bmp;base64,' + btoa(data);
 }
